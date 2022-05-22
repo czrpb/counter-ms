@@ -1,14 +1,16 @@
 defmodule CleanGenTcp do
   def listen(port) do
-    IO.puts("[GEN_TCP] Listening...")
-    {:ok, socket} = :gen_tcp.listen(
-      port,
-      active: false, packet: :http_bin, reuseaddr: true
-    )
     fn ->
-      IO.puts("[GEN_TCP] Accepting...")
-      {:ok, conn} = :gen_tcp.accept(socket)
-      conn(conn)
+      IO.puts("[GEN_TCP: #{port}] Listening...")
+      {:ok, socket} = :gen_tcp.listen(
+        port,
+        active: false, packet: :http_bin, reuseaddr: true
+      )
+      fn ->
+        IO.puts("[GEN_TCP: #{inspect(socket)}] Accepting...")
+        {:ok, conn} = :gen_tcp.accept(socket)
+        conn(conn)
+      end
     end
   end
 
@@ -16,26 +18,25 @@ defmodule CleanGenTcp do
     {
       {
         fn ->
-          IO.puts("[GEN_TCP] Receiving...")
+          IO.puts("[GEN_TCP: #{inspect(conn)}] Receiving...")
           :gen_tcp.recv(conn, 0)
         end,
         fn response ->
-          IO.puts("[GEN_TCP] Sending...")
+          IO.puts("[GEN_TCP: #{inspect(conn)}] Sending...")
           :gen_tcp.send(conn, response)
         end
       },
       fn ->
-        IO.puts("[GEN_TCP] Closing...")
+        IO.puts("[GEN_TCP: #{inspect(conn)}] Closing...")
         :gen_tcp.close(conn) end
     }
   end
 end
 
 defmodule CounterMicroservice do
-  def start(port, counter \\ 0) do
+  def start(listen, port, counter \\ 0) do
     IO.puts("[#{counter}] Binding on port #{port}...")
-    port
-    |> CleanGenTcp.listen
+    listen.()
     |> serve(counter)
   end
 
@@ -79,5 +80,6 @@ defmodule CounterMicroservice do
 end
 
 [port|_] = System.argv
+port = String.to_integer(port)
 
-CounterMicroservice.start(String.to_integer(port))
+CounterMicroservice.start(CleanGenTcp.listen(port), port)
